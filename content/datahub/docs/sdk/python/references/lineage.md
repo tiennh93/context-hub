@@ -22,28 +22,6 @@ client.lineage.add_lineage(
 )
 ```
 
-## Dataset Transform Lineage
-
-Declare a transformation with explicit column-level mapping and the SQL that produced it:
-
-```python
-client.lineage.add_lineage(
-    upstream="urn:li:dataset:(urn:li:dataPlatform:snowflake,raw.orders,PROD)",
-    downstream="urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.daily_revenue,PROD)",
-    column_lineage={
-        "order_date": ["created_at"],
-        "total_revenue": ["amount"],
-        "order_count": ["order_id"],
-    },
-    transformation_text=(
-        "SELECT DATE(created_at) AS order_date, "
-        "SUM(amount) AS total_revenue, "
-        "COUNT(order_id) AS order_count "
-        "FROM raw.orders GROUP BY DATE(created_at)"
-    ),
-)
-```
-
 ## Column Lineage Options
 
 The `column_lineage` parameter on `add_lineage()` accepts several forms:
@@ -131,50 +109,9 @@ Parameters:
 | `default_schema` | Default schema for unqualified table names |
 | `override_dialect` | Override SQL dialect for parsing |
 
-## Get Lineage (Impact Analysis)
+## Filtered Lineage
 
-### Upstream lineage (data origins)
-
-```python
-results = client.lineage.get_lineage(
-    source_urn="urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.sessions,PROD)",
-    direction="upstream",
-    max_hops=3,
-    count=500,
-)
-
-for result in results:
-    print(f"  {result.urn}")
-    print(f"  Type: {result.type}, Platform: {result.platform}")
-    print(f"  Hops: {result.hops}, Name: {result.name}")
-    if result.paths:
-        for path in result.paths:
-            print(f"    Path: {path.urn} -> {path.entity_name}")
-```
-
-### Downstream lineage (impact analysis)
-
-```python
-results = client.lineage.get_lineage(
-    source_urn="urn:li:dataset:(urn:li:dataPlatform:snowflake,raw.events,PROD)",
-    direction="downstream",
-    max_hops=5,
-)
-```
-
-### Column-level lineage
-
-```python
-results = client.lineage.get_lineage(
-    source_urn="urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.revenue,PROD)",
-    source_column="total_revenue",
-    direction="upstream",
-)
-```
-
-### Filtered lineage
-
-Combine lineage queries with search filters:
+Combine `get_lineage()` with search filters to narrow results:
 
 ```python
 from datahub.sdk import FilterDsl as F

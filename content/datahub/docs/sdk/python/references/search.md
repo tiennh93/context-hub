@@ -13,16 +13,6 @@ client = DataHubClient.from_env()
 results = client.search.get_urns(query="...", filter=F.platform("..."))
 ```
 
-## Query-Based Search
-
-Free-text search across common fields: name, description, column names, and other indexed metadata.
-
-```python
-results = client.search.get_urns(query="customer revenue")
-```
-
-Best for exploration when you don't know the exact asset name or location.
-
 ## Filter-Based Search
 
 Structured filters scope results by platform, entity type, domain, and other metadata fields.
@@ -194,74 +184,7 @@ Fields annotated with `@Searchable` in DataHub's PDL models can be used with `cu
 
 The exact searchable fields vary by entity type. Refer to the PDL model files in the [DataHub repo](https://github.com/datahub-project/datahub/tree/master/metadata-models/src/main/pegasus) for the full list.
 
-## Logical Operators
-
-Combine filters with `and_`, `or_`, and `not_`.
-
-### AND — all conditions must match
-
-```python
-results = client.search.get_urns(
-    filter=F.and_(
-        F.platform("snowflake"),
-        F.entity_type("dataset"),
-        F.domain("urn:li:domain:analytics"),
-    )
-)
-```
-
-### OR — at least one condition must match
-
-```python
-results = client.search.get_urns(
-    filter=F.or_(
-        F.entity_type("chart"),
-        F.and_(F.platform("snowflake"), F.entity_type("dataset")),
-    )
-)
-```
-
-### NOT — exclude matching entities
-
-```python
-results = client.search.get_urns(
-    filter=F.and_(
-        F.entity_type("dataset"),
-        F.not_(F.tag("urn:li:tag:deprecated")),
-    )
-)
-```
-
-### Combining query and filters
-
-Query narrows by keyword, filters scope by metadata. Use both for precise results.
-
-```python
-results = client.search.get_urns(
-    query="revenue",
-    filter=F.and_(
-        F.platform("snowflake"),
-        F.entity_type("dataset"),
-        F.domain("urn:li:domain:finance"),
-    )
-)
-```
-
 ## Common Patterns
-
-### Find all assets in a domain
-
-```python
-results = client.search.get_urns(filter=F.domain("urn:li:domain:marketing"))
-```
-
-### Find all dashboards on a BI platform
-
-```python
-results = client.search.get_urns(
-    filter=F.and_(F.entity_type("dashboard"), F.platform("looker"))
-)
-```
 
 ### Find datasets tagged as critical but missing an owner
 
@@ -271,26 +194,6 @@ for urn in critical:
     entity = client.entities.get(urn)
     if not entity.owners:
         print(f"Missing owner: {urn}")
-```
-
-### Find all documents in a domain
-
-```python
-results = client.search.get_urns(
-    filter=F.and_(
-        F.entity_type("document"),
-        F.domain("urn:li:domain:engineering"),
-    )
-)
-```
-
-### Search documents by keyword
-
-```python
-results = client.search.get_urns(
-    query="data quality",
-    filter=F.entity_type("document"),
-)
 ```
 
 ## Caching

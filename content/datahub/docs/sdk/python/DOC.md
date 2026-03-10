@@ -93,8 +93,6 @@ results = client.search.get_urns(filter=F.platform("snowflake"))
 ### Combine query and filters
 
 ```python
-from datahub.sdk import FilterDsl as F
-
 results = client.search.get_urns(
     query="forecast",
     filter=F.and_(F.platform("snowflake"), F.entity_type("dataset"))
@@ -200,131 +198,65 @@ client.entities.delete(
 
 ## Enriching Metadata
 
-### Descriptions
+Pattern: fetch the entity, call setters, then update. All setters work across supported entity types.
 
 ```python
 dataset = client.entities.get(dataset_urn)
+
 dataset.set_description("Updated description for this table")
-client.entities.update(dataset)
-```
-
-### Tags
-
-```python
-dataset = client.entities.get(dataset_urn)
-
-# On the dataset
 dataset.set_tags(["critical", "pii"])
+dataset.set_terms(["urn:li:glossaryTerm:PII", "urn:li:glossaryTerm:CustomerData"])
+dataset.set_domain("urn:li:domain:analytics")
+dataset.set_owners(["urn:li:corpuser:alice", "urn:li:corpGroup:data-engineering"])
+dataset.set_custom_properties({"team": "data-eng", "refresh_cadence": "hourly"})
+dataset.set_structured_properties({
+    "urn:li:structuredProperty:data_tier": ["tier1"],
+    "urn:li:structuredProperty:retention_days": [90],
+})
 
-# On individual columns
+# Column-level: tags, terms, and descriptions on individual schema fields
 for field in dataset.schema:
     if field.field_path == "email":
         field.add_tag("pii")
+        field.add_term("urn:li:glossaryTerm:EmailAddress")
         field.set_description("User email address, PII-classified")
 
 client.entities.update(dataset)
 ```
 
-### Glossary terms
+### Available setters
 
-```python
-dataset = client.entities.get(dataset_urn)
-dataset.set_terms(["urn:li:glossaryTerm:PII", "urn:li:glossaryTerm:CustomerData"])
+| Method | Example value |
+|--------|---------------|
+| `set_description(str)` | `"Core users table"` |
+| `set_tags(list)` | `["critical", "pii"]` |
+| `set_terms(list)` | `["urn:li:glossaryTerm:PII"]` |
+| `set_domain(str)` | `"urn:li:domain:analytics"` |
+| `set_owners(list)` | `["urn:li:corpuser:alice"]` |
+| `set_custom_properties(dict)` | `{"team": "data-eng"}` |
+| `set_structured_properties(dict)` | `{"urn:li:structuredProperty:tier": ["tier1"]}` |
 
-for field in dataset.schema:
-    if field.field_path == "email":
-        field.add_term("urn:li:glossaryTerm:EmailAddress")
-
-client.entities.update(dataset)
-```
-
-### Domains
-
-```python
-dataset = client.entities.get(dataset_urn)
-dataset.set_domain("urn:li:domain:analytics")
-client.entities.update(dataset)
-```
-
-### Owners
-
-```python
-dataset = client.entities.get(dataset_urn)
-dataset.set_owners([
-    "urn:li:corpuser:alice",
-    "urn:li:corpGroup:data-engineering",
-])
-client.entities.update(dataset)
-```
-
-### Structured properties
-
-```python
-dataset = client.entities.get(dataset_urn)
-dataset.set_structured_properties({
-    "urn:li:structuredProperty:data_tier": ["tier1"],
-    "urn:li:structuredProperty:retention_days": [90],
-})
-client.entities.update(dataset)
-```
-
-### Custom properties
-
-```python
-dataset = client.entities.get(dataset_urn)
-dataset.set_custom_properties({
-    "team": "data-engineering",
-    "slack_channel": "#data-eng",
-    "refresh_cadence": "hourly",
-})
-client.entities.update(dataset)
-```
+Column-level methods on `SchemaField`: `add_tag(str)`, `add_term(str)`, `set_description(str)`.
 
 ## Containers
 
-Organize datasets logically with containers (databases, schemas, folders).
+Containers organize datasets into hierarchies (databases, schemas, folders). Use `DatabaseKey` and `SchemaKey` to create them with proper parent-child relationships.
 
 ```python
 from datahub.sdk import Container
-from datahub.emitter.mcp_builder import DatabaseKey, SchemaKey
+from datahub.emitter.mcp_builder import DatabaseKey
 
-database_key = DatabaseKey(
-    platform="snowflake",
-    instance="production",
-    database="analytics_db",
-)
-
-database_container = Container(
-    database_key,
+container = Container(
+    DatabaseKey(platform="snowflake", instance="production", database="analytics_db"),
     display_name="Analytics Database",
-    description="Main analytics database",
     subtype="Database",
 )
-client.entities.upsert(database_container)
-
-schema_key = SchemaKey(
-    platform="snowflake",
-    instance="production",
-    database="analytics_db",
-    schema="reporting",
-)
-
-schema_container = Container(
-    schema_key,
-    display_name="Reporting Schema",
-    description="Schema for reporting tables and views",
-    subtype="Schema",
-    parent_container=database_key,
-    domain="urn:li:domain:analytics",
-)
-client.entities.upsert(schema_container)
+client.entities.upsert(container)
 ```
 
 ## Documents
 
-Documents store knowledge content — tutorials, runbooks, FAQs, or references to external docs in systems like Notion or Confluence.
-
-### Native document (stored in DataHub)
+Documents store knowledge content — tutorials, runbooks, FAQs, or external doc references (Notion, Confluence).
 
 ```python
 from datahub.sdk import Document
@@ -339,44 +271,7 @@ doc = Document.create_document(
 client.entities.upsert(doc)
 ```
 
-### External document (Notion, Confluence, etc.)
-
-```python
-doc = Document.create_external_document(
-    id="notion-team-handbook",
-    title="Engineering Handbook",
-    platform="notion",
-    external_url="https://notion.so/team/engineering-handbook",
-    external_id="notion-page-abc123",
-    text="Summary of the handbook for search indexing...",
-)
-client.entities.upsert(doc)
-```
-
-### AI-only context document
-
-Documents hidden from global search/sidebar, accessible only through related assets:
-
-```python
-doc = Document.create_document(
-    id="orders-dataset-context",
-    title="Orders Dataset Context",
-    text="This dataset contains daily order summaries...",
-    show_in_global_context=False,
-    related_assets=["urn:li:dataset:(urn:li:dataPlatform:snowflake,orders,PROD)"],
-)
-client.entities.upsert(doc)
-```
-
-### Document properties
-
-- `doc.set_title("New Title")` / `doc.title`
-- `doc.set_text("New content")` / `doc.text`
-- `doc.publish()` / `doc.unpublish()` / `doc.status`
-- `doc.set_parent_document("urn:li:document:parent-doc")` — hierarchical organization
-- `doc.add_related_asset("urn:li:dataset:...")` / `doc.set_related_assets([...])`
-- `doc.add_related_document("urn:li:document:...")` / `doc.set_related_documents([...])`
-- `doc.hide_from_global_context()` / `doc.show_in_global_search()`
+See `references/entities.md` for nested container hierarchies, external documents, AI-only context documents, and document properties.
 
 ## Lineage
 
@@ -527,7 +422,6 @@ DataHub identifies every entity with a URN (Uniform Resource Name) — a globall
 | Tag | `urn:li:tag:{name}` | Lightweight labels for classification (e.g. critical, deprecated) |
 | Document | `urn:li:document:{id}` | Knowledge content: tutorials, runbooks, FAQs, or external doc references |
 | Assertion | `urn:li:assertion:{id}` | A data quality check bound to a dataset |
-| Incident | `urn:li:incident:{id}` | A data incident or issue raised against an asset |
 | User | `urn:li:corpuser:{id}` | An individual user identity |
 | Group | `urn:li:corpGroup:{id}` | A team or group of users |
 

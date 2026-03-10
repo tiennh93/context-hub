@@ -7,8 +7,7 @@ The actor making API calls needs `Edit Assertions` and `Edit Monitors` privilege
 ## Setup
 
 ```python
-from datahub.sdk import DataHubClient
-from datahub.sdk.search_filters import FilterDsl as F
+from datahub.sdk import DataHubClient, FilterDsl as F
 from datahub.metadata.urns import DatasetUrn
 
 client = DataHubClient(server="<your_server>", token="<your_token>")
@@ -124,13 +123,13 @@ def create_sql_assertions(datasets, client):
 def get_dataset_columns(client, dataset_urn):
     try:
         dataset = client.entities.get(dataset_urn)
-        if dataset and hasattr(dataset, "schema") and dataset.schema:
+        if dataset and dataset.schema:
             return [
                 {
                     "name": field.field_path,
-                    "type": field.native_data_type,
+                    "type": field.native_type,
                 }
-                for field in dataset.schema.fields
+                for field in dataset.schema
             ]
         return []
     except Exception as e:
@@ -231,24 +230,6 @@ def batch_create_assertions(datasets, client, batch_size=10, delay_seconds=1.0):
             time.sleep(delay_seconds)
 
     return results
-```
-
-## Store and Load Assertion URNs
-
-```python
-import json
-from datetime import datetime
-
-def save_registry(registry, filename=None):
-    if filename is None:
-        filename = f"assertion_registry_{datetime.now():%Y%m%d_%H%M%S}.json"
-    with open(filename, "w") as f:
-        json.dump({"created_at": datetime.now().isoformat(), "assertions": registry}, f, indent=2)
-    return filename
-
-def load_registry(filename):
-    with open(filename) as f:
-        return json.load(f)["assertions"]
 ```
 
 ## Important Considerations
